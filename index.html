@@ -157,12 +157,29 @@
 
     function startScanner() {
       if (html5QrCode) return;
-      html5QrCode = new Html5Qrcode("reader");
+      html5QrCode = new Html5Qrcode("reader", {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF
+        ],
+        verbose: false
+      });
       Html5Qrcode.getCameras().then(cameras => {
         if (cameras && cameras.length) {
           html5QrCode.start(
             { facingMode: "environment" },
-            { fps: 10, qrbox: 250 },
+            {
+              fps: 10,
+              // Wider box (not square) so 1D barcodes aren't cropped
+              qrbox: { width: 280, height: 160 }
+            },
             onScanSuccess
           );
         }
@@ -178,9 +195,25 @@
       }
     }
 
+    function playBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+        oscillator.connect(gain);
+        gain.connect(ctx.destination);
+        oscillator.type = "sine";
+        oscillator.frequency.value = 1000;
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        oscillator.start();
+        oscillator.stop(ctx.currentTime + 0.15);
+      } catch (e) { /* ignore if audio not supported */ }
+    }
+
     function onScanSuccess(decodedText) {
       if (isProcessing) return;
       isProcessing = true;
+      playBeep();
       handleSerial(decodedText, "Scanned", null, null);
     }
 
