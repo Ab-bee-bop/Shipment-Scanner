@@ -13,7 +13,10 @@
     button { padding: 12px 16px; font-size: 16px; border: none; border-radius: 6px; cursor: pointer; margin-top: 12px; width: 100%; }
     .btn-primary { background: #1a73e8; color: white; }
     .btn-secondary { background: #e0e0e0; color: #333; }
-    .btn-tab { width: 48%; display: inline-block; }
+    .btn-active { background: #0d47a1; color: white; }
+    .btn-tab { width: 31%; display: inline-block; font-size: 13px; padding: 10px 4px; }
+    #laserInput { font-size: 20px; letter-spacing: 2px; }
+    .laser-hint { text-align: center; margin-top: 10px; font-size: 13px; color: #888; }
     #reader { width: 100%; margin-top: 12px; }
     .status-ok { background: #d9ead3; padding: 10px; border-radius: 6px; margin-top: 10px; }
     .status-bad { background: #f4cccc; padding: 10px; border-radius: 6px; margin-top: 10px; }
@@ -43,13 +46,23 @@
     </div>
 
     <div class="card">
-      <button class="btn-primary btn-tab" onclick="switchMode('scan')">📷 Scan</button>
-      <button class="btn-secondary btn-tab" onclick="switchMode('manual')">⌨️ Manual Entry</button>
+      <button id="btnScan" class="btn-primary btn-tab" onclick="switchMode('scan')">📷 Camera</button>
+      <button id="btnLaser" class="btn-secondary btn-tab" onclick="switchMode('laser')">🔫 Laser</button>
+      <button id="btnManual" class="btn-secondary btn-tab" onclick="switchMode('manual')">⌨️ Manual</button>
 
+      <!-- Camera scan mode -->
       <div id="scanMode">
         <div id="reader"></div>
       </div>
 
+      <!-- Laser scanner mode -->
+      <div id="laserMode" class="hidden">
+        <label>Point laser at barcode/QR and pull trigger</label>
+        <input type="text" id="laserInput" placeholder="Waiting for scan..." autocomplete="off">
+        <p class="laser-hint">The field above is always active — just scan, no need to click anything between items.</p>
+      </div>
+
+      <!-- Manual entry mode -->
       <div id="manualMode" class="hidden">
         <label>Serial Number</label>
         <input type="text" id="manualSerial">
@@ -97,6 +110,8 @@
       scannerName = name;
       document.getElementById('nameOverlay').classList.add('hidden');
       document.getElementById('mainApp').classList.remove('hidden');
+      // Wire up laser input field to listen for Enter key
+      document.getElementById('laserInput').addEventListener('keydown', onLaserScan);
       loadShipments();
     }
 
@@ -144,15 +159,45 @@
     }
 
     function switchMode(mode) {
+      // Hide all panels
+      document.getElementById('scanMode').classList.add('hidden');
+      document.getElementById('laserMode').classList.add('hidden');
+      document.getElementById('manualMode').classList.add('hidden');
+
+      // Reset all buttons to secondary style
+      document.getElementById('btnScan').className = 'btn-secondary btn-tab';
+      document.getElementById('btnLaser').className = 'btn-secondary btn-tab';
+      document.getElementById('btnManual').className = 'btn-secondary btn-tab';
+
       if (mode === 'scan') {
         document.getElementById('scanMode').classList.remove('hidden');
-        document.getElementById('manualMode').classList.add('hidden');
+        document.getElementById('btnScan').className = 'btn-active btn-tab';
         startScanner();
+      } else if (mode === 'laser') {
+        document.getElementById('laserMode').classList.remove('hidden');
+        document.getElementById('btnLaser').className = 'btn-active btn-tab';
+        stopScanner();
+        // Auto-focus the laser input field so it's ready immediately
+        setTimeout(() => document.getElementById('laserInput').focus(), 100);
       } else {
-        document.getElementById('scanMode').classList.add('hidden');
         document.getElementById('manualMode').classList.remove('hidden');
+        document.getElementById('btnManual').className = 'btn-active btn-tab';
         stopScanner();
       }
+    }
+
+    // Laser scanner: fires when Enter is received (laser scanners auto-send Enter after each scan)
+    function onLaserScan(event) {
+      if (event.key !== 'Enter') return;
+      const serial = document.getElementById('laserInput').value.trim();
+      if (!serial) return;
+      if (isProcessing) return;
+      isProcessing = true;
+      document.getElementById('laserInput').value = "";
+      playBeep();
+      handleSerial(serial, "Laser", null, null);
+      // Re-focus field so it's ready for the next scan immediately
+      setTimeout(() => document.getElementById('laserInput').focus(), 100);
     }
 
     function startScanner() {
@@ -252,6 +297,7 @@
         showResult(serial, result);
         isProcessing = false;
         if (method === "Manual") document.getElementById('manualSerial').value = "";
+        if (method === "Laser") document.getElementById('laserInput').focus();
       });
     }
 
